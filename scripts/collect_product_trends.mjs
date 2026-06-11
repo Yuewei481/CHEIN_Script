@@ -217,131 +217,6 @@ function yesterdayLabels() {
   return [`${yyyy}/${mm}/${dd}`, `${yyyy}-${mm}-${dd}`];
 }
 
-function normalizeSeriesValue(value) {
-  if (Array.isArray(value)) return value.at(-1);
-  if (value && typeof value === "object") return value.value ?? value.y ?? value.data;
-  return value;
-}
-
-function extractYesterdaySalesFromRow(rowText) {
-  const match = rowText.match(/(?:是|否)\s+([0-9]+)\s+[0-9]+/);
-  if (!match) return null;
-  return Number(match[1]);
-}
-
-function extractSalesFromCharts(charts) {
-  const labels = yesterdayLabels();
-
-  for (const chart of charts) {
-    const xAxis = Array.isArray(chart.xAxis) ? chart.xAxis[0] : chart.xAxis;
-    const dates = xAxis?.data || [];
-    const dateIndex = dates.findIndex((date) =>
-      labels.some((label) => String(date).includes(label)),
-    );
-
-    const seriesList = Array.isArray(chart.series) ? chart.series : [];
-    const salesSeries =
-      seriesList.find((series) => String(series.name || "").includes("销量")) ||
-      seriesList[0];
-
-    if (salesSeries?.data?.length) {
-      const index = dateIndex >= 0 ? dateIndex : salesSeries.data.length - 1;
-      return {
-        date: dates[index] || labels[0],
-        sales: normalizeSeriesValue(salesSeries.data[index]),
-        seriesName: salesSeries.name || "",
-      };
-    }
-  }
-
-  return { date: labels[0], sales: null, seriesName: "" };
-}
-
-function findYesterdaySalesInJson(payload) {
-  const labels = yesterdayLabels();
-  const salesKeyPattern =
-    /^(销量|saleQty|salesQty|saleNum|salesNum|salesVolume|saleCount|salesCount|payQty|payNum|orderSaleQty|orderSalesQty)$/i;
-  const excludedSalesKeyPattern = /onsale|on_sale|saleFlag|saleStatus/i;
-  const dateKeyPattern = /date|dt|day|stat|time/i;
-  const candidates = [];
-
-  function walk(value, pathParts = []) {
-    if (Array.isArray(value)) {
-      for (let i = 0; i < value.length; i += 1) {
-        walk(value[i], pathParts.concat(String(i)));
-      }
-      return;
-    }
-
-    if (!value || typeof value !== "object") return;
-
-    const entries = Object.entries(value);
-    const dateEntry = entries.find(([key, entryValue]) => {
-      if (!dateKeyPattern.test(key)) return false;
-      return labels.some((label) => String(entryValue).includes(label));
-    });
-
-    if (dateEntry) {
-      const salesEntry = entries.find(([key, entryValue]) => {
-        return (
-          salesKeyPattern.test(key) &&
-          !excludedSalesKeyPattern.test(key) &&
-          Number.isFinite(Number(entryValue))
-        );
-      });
-
-      if (salesEntry) {
-        candidates.push({
-          date: String(dateEntry[1]),
-          sales: Number(salesEntry[1]),
-          seriesName: salesEntry[0],
-          path: pathParts.join("."),
-        });
-      }
-    }
-
-    for (const [key, entryValue] of entries) {
-      walk(entryValue, pathParts.concat(key));
-    }
-  }
-
-  walk(payload);
-  return candidates[0] || null;
-}
-
-function captureJsonResponses() {
-  const responses = [];
-
-  const handler = async (response) => {
-    const request = response.request();
-    if (request.resourceType() !== "xhr" && request.resourceType() !== "fetch") {
-      return;
-    }
-
-    const contentType = response.headers()["content-type"] || "";
-    if (!contentType.includes("json")) return;
-
-    try {
-      const payload = await response.json();
-      responses.push({
-        url: response.url(),
-        payload,
-        salesCandidate: findYesterdaySalesInJson(payload),
-      });
-    } catch {
-      // Some endpoints report JSON content but return an empty body.
-    }
-  };
-
-  page.on("response", handler);
-  return {
-    responses,
-    stop() {
-      page.off("response", handler);
-    },
-  };
-}
-
 async function visibleTrendTargets() {
   return page.evaluate(() => {
     function visibleRect(element) {
@@ -439,22 +314,178 @@ async function readTrendModal() {
   const spu = modalText.match(/SPU[:：]\s*([A-Za-z0-9_-]+)/)?.[1] || "";
   const sku = modalText.match(/SKC?[:：]\s*([A-Za-z0-9_-]+)/)?.[1] || "";
 
-  const charts = await page.evaluate(() => {
-    const echartsApi = window.echarts;
-    if (!echartsApi?.getInstanceByDom) return [];
-
-    return [...document.querySelectorAll("[_echarts_instance_]")]
-      .map((element) => echartsApi.getInstanceByDom(element)?.getOption())
-      .filter(Boolean);
-  });
-
-  const chartSales = extractSalesFromCharts(charts);
-
   return {
     spu,
     sku,
-    ...chartSales,
     rawText: modalText,
+  };
+}
+
+async function readTooltipSalesForYesterday() {
+  const [slashLabel, dashLabel] = yesterdayLabels();
+  const hoverTarget = await page.evaluate((labels) => {
+    function isVisible(element) {
+      const rect = element.getBoundingClientRect();
+      const style = window.getComputedStyle(element);
+      return (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        style.display !== "none" &&
+        style.visibility !== "hidden"
+      );
+    }
+
+    const modal =
+      document.querySelector(".sui-modal, .ant-modal, [role='dialog']") ||
+      document.body;
+    const canvases = [...modal.querySelectorAll("canvas")].filter(isVisible);
+    const chartRect =
+      canvases
+        .map((canvas) => canvas.getBoundingClientRect())
+        .sort((a, b) => b.width * b.height - a.width * a.height)[0] || null;
+
+    const dateNodes = [...modal.querySelectorAll("*")].filter((element) => {
+      const text = element.textContent?.trim();
+      if (!text || !labels.some((label) => text === label || text.includes(label))) {
+        return false;
+      }
+      if (text.length > 40) return false;
+      return isVisible(element);
+    });
+
+    const dateRect =
+      dateNodes
+        .map((element) => element.getBoundingClientRect())
+        .sort((a, b) => b.top - a.top)[0] || null;
+
+    if (dateRect && chartRect) {
+      const x = dateRect.left + dateRect.width / 2;
+      return {
+        x,
+        yCandidates: [
+          chartRect.top + chartRect.height * 0.75,
+          chartRect.top + chartRect.height * 0.6,
+          chartRect.top + chartRect.height * 0.45,
+          chartRect.top + chartRect.height * 0.3,
+          chartRect.top + chartRect.height * 0.15,
+        ],
+        source: "date-label-and-canvas",
+      };
+    }
+
+    if (dateRect) {
+      const x = dateRect.left + dateRect.width / 2;
+      return {
+        x,
+        yCandidates: [80, 120, 160, 200, 240, 280, 320].map((offset) =>
+          Math.max(20, dateRect.top - offset),
+        ),
+        source: "date-label-estimated-plot",
+      };
+    }
+
+    if (chartRect) {
+      const x = chartRect.right - 8;
+      return {
+        x,
+        yCandidates: [
+          chartRect.top + chartRect.height * 0.75,
+          chartRect.top + chartRect.height * 0.6,
+          chartRect.top + chartRect.height * 0.45,
+          chartRect.top + chartRect.height * 0.3,
+          chartRect.top + chartRect.height * 0.15,
+        ],
+        source: "canvas-right-edge",
+      };
+    }
+
+    return null;
+  }, [slashLabel, dashLabel]);
+
+  if (!hoverTarget) {
+    return {
+      date: slashLabel,
+      sales: null,
+      tooltipText: "",
+      hoverSource: "not-found",
+    };
+  }
+
+  async function getTooltipText() {
+    return page.evaluate((labels) => {
+    const candidates = [...document.querySelectorAll("body *")]
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+        const style = window.getComputedStyle(element);
+        const text = element.innerText?.trim() || element.textContent?.trim() || "";
+        return {
+          text,
+          area: rect.width * rect.height,
+          visible:
+            rect.width > 0 &&
+            rect.height > 0 &&
+            style.display !== "none" &&
+            style.visibility !== "hidden" &&
+            style.opacity !== "0",
+        };
+      })
+      .filter(
+        (item) =>
+          item.visible &&
+          item.text.length <= 200 &&
+          item.area <= 80000 &&
+          item.text.includes("销量") &&
+          labels.some((label) => item.text.includes(label)) &&
+          /销量\s+[0-9][0-9,]*(?:\.[0-9]+)?/.test(item.text),
+      )
+      .sort((a, b) => a.area - b.area);
+
+    return candidates[0]?.text || "";
+    }, [slashLabel, dashLabel]);
+  }
+
+  let tooltipText = "";
+  let hoverY = null;
+  let hoverX = hoverTarget.x;
+  let elementsAtPoint = [];
+
+  await humanPause(`hover ${slashLabel} on trend chart`);
+  const xCandidates = [-60, -40, -20, 0, 20, 40].map(
+    (offset) => hoverTarget.x + offset,
+  );
+  for (const x of xCandidates) {
+    for (const y of hoverTarget.yCandidates || []) {
+      await page.mouse.move(x, y, { steps: 8 });
+      await page.waitForTimeout(350);
+
+      tooltipText = await getTooltipText();
+      hoverX = x;
+      hoverY = y;
+      elementsAtPoint = await page.evaluate(
+        ({ x: pointX, y: pointY }) =>
+          document.elementsFromPoint(pointX, pointY).slice(0, 8).map((element) => ({
+            tag: element.tagName,
+            className: String(element.className || ""),
+            text: (element.innerText || element.textContent || "").trim().slice(0, 120),
+          })),
+        { x, y },
+      );
+      if (tooltipText) break;
+    }
+    if (tooltipText) break;
+  }
+
+  const salesMatch = tooltipText.match(/销量\s*([0-9][0-9,]*(?:\.[0-9]+)?)/);
+
+  return {
+    date: slashLabel,
+    sales: salesMatch ? Number(salesMatch[1].replaceAll(",", "")) : null,
+    seriesName: salesMatch ? "tooltipSales" : "",
+    tooltipText,
+    hoverSource: hoverTarget.source,
+    hoverX,
+    hoverY,
+    elementsAtPoint,
   };
 }
 
@@ -526,66 +557,44 @@ async function collectTrends() {
       const target = trendTargets[i];
       if (!target) break;
 
-      const rowText = target.rowText || "";
-      const sniffer = captureJsonResponses();
-
       await humanPause(`open trend ${results.length + 1}`);
       await page.mouse.click(target.x, target.y);
       await page.waitForTimeout(5000);
-      sniffer.stop();
 
       const trend = await readTrendModal();
-      const responseSales = sniffer.responses.find((item) => item.salesCandidate)
-        ?.salesCandidate;
-      const tableSales = extractYesterdaySalesFromRow(rowText);
-      const sales = trend.sales ?? responseSales?.sales ?? tableSales;
-      const date = trend.sales == null && responseSales ? responseSales.date : trend.date;
-      const seriesName =
-        trend.sales == null && responseSales
-          ? responseSales.seriesName
-          : trend.seriesName || (tableSales == null ? "" : "tableRowSales");
+      const tooltip = await readTooltipSalesForYesterday();
 
       results.push({
         index: results.length + 1,
         page: pageNo,
         row: i + 1,
-        spu:
-          target.spu ||
-          rowText.match(/SPU[:：]\s*([A-Za-z0-9_-]+)/)?.[1] ||
-          trend.spu ||
-          "",
-        sku:
-          target.sku ||
-          rowText.match(/SKC?[:：]\s*([A-Za-z0-9_-]+)/)?.[1] ||
-          trend.sku ||
-          "",
-        date,
-        yesterdaySales: sales,
-        seriesName,
+        spu: trend.spu || target.spu || "",
+        sku: trend.sku || target.sku || "",
+        date: tooltip.date,
+        yesterdaySales: tooltip.sales,
+        seriesName: tooltip.seriesName,
+        tooltipText: tooltip.tooltipText,
+        hoverSource: tooltip.hoverSource,
       });
 
       console.log(
-        `Collected #${results.length}: SPU=${results.at(-1).spu || "-"}, ${date} sales=${sales ?? "-"}`,
+        `Collected #${results.length}: SPU=${results.at(-1).spu || "-"}, ${tooltip.date} sales=${tooltip.sales ?? "-"}`,
       );
 
-      if (sales == null || process.env.DEBUG_RESPONSES === "1") {
+      if (tooltip.sales == null) {
+        await page.screenshot({
+          path: path.join(artifactDir, `tooltip-missing-${results.length}.png`),
+          fullPage: true,
+        });
         const debugPath = path.join(
           artifactDir,
           `trend-debug-${results.length}.json`,
         );
         await writeFile(
           debugPath,
-          JSON.stringify(
-            sniffer.responses.map((item) => ({
-              url: item.url,
-              salesCandidate: item.salesCandidate,
-              payload: item.payload,
-            })),
-            null,
-            2,
-          ),
+          JSON.stringify({ target, trend, tooltip }, null, 2),
         );
-        console.log(`Saved debug responses: ${debugPath}`);
+        console.log(`Saved tooltip debug: ${debugPath}`);
       }
 
       await closeTrendModal();
@@ -613,7 +622,7 @@ try {
   await writeFile(jsonPath, JSON.stringify(results, null, 2));
   await writeFile(
     csvPath,
-    ["index,page,row,spu,sku,date,yesterdaySales,seriesName"]
+    ["index,page,row,spu,sku,date,yesterdaySales,seriesName,hoverSource,tooltipText"]
       .concat(
         results.map((item) =>
           [
@@ -625,6 +634,8 @@ try {
             item.date,
             item.yesterdaySales,
             item.seriesName,
+            item.hoverSource,
+            item.tooltipText,
           ]
             .map((value) => `"${String(value ?? "").replaceAll('"', '""')}"`)
             .join(","),
@@ -636,12 +647,12 @@ try {
   console.log(`Saved JSON: ${jsonPath}`);
   console.log(`Saved CSV: ${csvPath}`);
 
-  if (process.env.KEEP_BROWSER_OPEN !== "0") {
+  if (process.env.KEEP_BROWSER_OPEN === "1") {
     console.log("Browser is visible and will stay open. Press Ctrl+C here when finished.");
     await new Promise(() => {});
   }
 } finally {
-  if (process.env.KEEP_BROWSER_OPEN === "0") {
+  if (process.env.KEEP_BROWSER_OPEN !== "1") {
     await browser.close();
   }
 }
