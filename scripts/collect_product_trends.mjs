@@ -208,13 +208,40 @@ async function navigateToProductDetails() {
   await page.waitForTimeout(2000);
 }
 
-function yesterdayLabels() {
-  const now = new Date();
-  now.setDate(now.getDate() - 1);
-  const yyyy = now.getFullYear();
-  const mm = String(now.getMonth() + 1).padStart(2, "0");
-  const dd = String(now.getDate()).padStart(2, "0");
+function formatDateLabels(date) {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
   return [`${yyyy}/${mm}/${dd}`, `${yyyy}-${mm}-${dd}`];
+}
+
+function normalizeTrendDate(input) {
+  const trimmed = String(input || "").trim();
+  if (!trimmed) return null;
+
+  const match = trimmed.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/);
+  if (!match) {
+    throw new Error(`Invalid TREND_DATES date: ${trimmed}. Use YYYY/MM/DD or YYYY-MM-DD.`);
+  }
+
+  const [, year, month, day] = match;
+  const date = new Date(Number(year), Number(month) - 1, Number(day));
+  return formatDateLabels(date);
+}
+
+function trendDateLabels() {
+  const configured = String(process.env.TREND_DATES || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  if (configured.length) {
+    return configured.map((value) => normalizeTrendDate(value));
+  }
+
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  return [formatDateLabels(yesterday)];
 }
 
 async function visibleTrendTargets() {
@@ -321,8 +348,8 @@ async function readTrendModal() {
   };
 }
 
-async function readTooltipSalesForYesterday() {
-  const [slashLabel, dashLabel] = yesterdayLabels();
+async function readTooltipSalesForDate(labels) {
+  const [slashLabel, dashLabel] = labels;
   const hoverTarget = await page.evaluate((labels) => {
     function isVisible(element) {
       const rect = element.getBoundingClientRect();
@@ -530,6 +557,7 @@ async function clickNextPageIfAvailable() {
 async function collectTrends() {
   const results = [];
   let pageNo = 1;
+  const datesToRead = trendDateLabels();
 
   while (maxProducts === 0 || results.length < maxProducts) {
     console.log(`Scanning 商品明细 page ${pageNo}`);
@@ -562,39 +590,42 @@ async function collectTrends() {
       await page.waitForTimeout(5000);
 
       const trend = await readTrendModal();
-      const tooltip = await readTooltipSalesForYesterday();
 
-      results.push({
-        index: results.length + 1,
-        page: pageNo,
-        row: i + 1,
-        spu: trend.spu || target.spu || "",
-        sku: trend.sku || target.sku || "",
-        date: tooltip.date,
-        yesterdaySales: tooltip.sales,
-        seriesName: tooltip.seriesName,
-        tooltipText: tooltip.tooltipText,
-        hoverSource: tooltip.hoverSource,
-      });
+      for (const labels of datesToRead) {
+        const tooltip = await readTooltipSalesForDate(labels);
 
-      console.log(
-        `Collected #${results.length}: SPU=${results.at(-1).spu || "-"}, ${tooltip.date} sales=${tooltip.sales ?? "-"}`,
-      );
-
-      if (tooltip.sales == null) {
-        await page.screenshot({
-          path: path.join(artifactDir, `tooltip-missing-${results.length}.png`),
-          fullPage: true,
+        results.push({
+          index: results.length + 1,
+          page: pageNo,
+          row: i + 1,
+          spu: trend.spu || target.spu || "",
+          sku: trend.sku || target.sku || "",
+          date: tooltip.date,
+          sales: tooltip.sales,
+          seriesName: tooltip.seriesName,
+          tooltipText: tooltip.tooltipText,
+          hoverSource: tooltip.hoverSource,
         });
-        const debugPath = path.join(
-          artifactDir,
-          `trend-debug-${results.length}.json`,
+
+        console.log(
+          `Collected #${results.length}: SPU=${results.at(-1).spu || "-"}, ${tooltip.date} sales=${tooltip.sales ?? "-"}`,
         );
-        await writeFile(
-          debugPath,
-          JSON.stringify({ target, trend, tooltip }, null, 2),
-        );
-        console.log(`Saved tooltip debug: ${debugPath}`);
+
+        if (tooltip.sales == null) {
+          await page.screenshot({
+            path: path.join(artifactDir, `tooltip-missing-${results.length}.png`),
+            fullPage: true,
+          });
+          const debugPath = path.join(
+            artifactDir,
+            `trend-debug-${results.length}.json`,
+          );
+          await writeFile(
+            debugPath,
+            JSON.stringify({ target, trend, tooltip }, null, 2),
+          );
+          console.log(`Saved tooltip debug: ${debugPath}`);
+        }
       }
 
       await closeTrendModal();
@@ -622,7 +653,7 @@ try {
   await writeFile(jsonPath, JSON.stringify(results, null, 2));
   await writeFile(
     csvPath,
-    ["index,page,row,spu,sku,date,yesterdaySales,seriesName,hoverSource,tooltipText"]
+    ["index,page,row,spu,sku,date,sales,seriesName,hoverSource,tooltipText"]
       .concat(
         results.map((item) =>
           [
@@ -632,7 +663,7 @@ try {
             item.spu,
             item.sku,
             item.date,
-            item.yesterdaySales,
+            item.sales,
             item.seriesName,
             item.hoverSource,
             item.tooltipText,

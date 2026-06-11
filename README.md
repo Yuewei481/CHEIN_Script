@@ -26,6 +26,12 @@
    npm run collect:product-trends
    ```
 
+   默认读取昨天日期。要指定日期，用 `TREND_DATES`，多个日期用英文逗号分隔：
+
+   ```bash
+   TREND_DATES=2026/06/10,2026/06/09 npm run collect:product-trends
+   ```
+
 3. 将最新采集结果和参考 Excel 按 SPU 合并，生成待写入 WPS 的 CSV/JSON：
 
    ```bash

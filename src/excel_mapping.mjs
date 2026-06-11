@@ -65,7 +65,7 @@ export async function mergeTrendRowsForAccount(trends, account) {
     spu: trend.spu,
     sku: trend.sku,
     date: trend.date,
-    yesterdaySales: trend.yesterdaySales,
+    sales: trend.sales ?? trend.yesterdaySales,
     ...mapping.get(trend.spu),
   }));
 }
