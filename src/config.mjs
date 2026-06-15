@@ -19,19 +19,13 @@ export function loadSyncConfig() {
       name: env(`ACCOUNT_${i}_NAME`, `CHEIN ${i}`),
       sourceExcel: env(`ACCOUNT_${i}_SOURCE_EXCEL`),
       sourceExcelSheet: env(`ACCOUNT_${i}_SOURCE_EXCEL_SHEET`),
-      sourceExcelSpuColumn: env(`ACCOUNT_${i}_SOURCE_EXCEL_SPU_COLUMN`, "A"),
+      sourceExcelSpuColumn: env(`ACCOUNT_${i}_SOURCE_EXCEL_SPU_COLUMN`, "E"),
+      sourceExcelNameColumn: env(`ACCOUNT_${i}_SOURCE_EXCEL_NAME_COLUMN`, "B"),
       groupTitle: env(`ACCOUNT_${i}_GROUP_TITLE`, `CHEIN ${i}`),
     });
   }
 
   return {
-    wps: {
-      docUrl: env("WPS_DOC_URL"),
-      sheetName: env("WPS_SHEET_NAME"),
-      headerTitle: env("WPS_HEADER_TITLE"),
-      initialWaitMs: envNumber("WPS_INITIAL_WAIT_MS", 120000),
-      writeMode: env("WPS_WRITE_MODE", "prepare"),
-    },
     accounts,
   };
 }

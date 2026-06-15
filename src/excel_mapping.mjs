@@ -13,8 +13,23 @@ function columnToIndex(column) {
   return index - 1;
 }
 
+function cellToText(value) {
+  if (value == null) return "";
+  if (typeof value === "object") {
+    if ("text" in value) return String(value.text ?? "").trim();
+    if ("result" in value) return String(value.result ?? "").trim();
+    if ("richText" in value) {
+      return value.richText.map((entry) => entry.text || "").join("").trim();
+    }
+  }
+
+  return String(value).trim();
+}
+
 export async function loadSpuMapping(account) {
-  if (!account.sourceExcel) return new Map();
+  if (!account.sourceExcel) {
+    throw new Error(`ACCOUNT_${account.index}_SOURCE_EXCEL is required for Excel matching.`);
+  }
 
   const excelPath = path.resolve(account.sourceExcel);
   if (!fs.existsSync(excelPath)) {
@@ -31,27 +46,20 @@ export async function loadSpuMapping(account) {
     throw new Error(`Sheet "${account.sourceExcelSheet || "(first sheet)"}" not found in ${excelPath}`);
   }
 
-  const rows = [];
-  sheet.eachRow({ includeEmpty: false }, (row) => {
-    rows.push(row.values.slice(1).map((value) => value ?? ""));
-  });
-
-  const [headers = [], ...dataRows] = rows;
   const spuIndex = columnToIndex(account.sourceExcelSpuColumn);
+  const nameIndex = columnToIndex(account.sourceExcelNameColumn);
   const mapping = new Map();
 
-  for (const row of dataRows) {
-    const spu = String(row[spuIndex] || "").trim();
-    if (!spu) continue;
+  sheet.eachRow({ includeEmpty: false }, (row) => {
+    const values = row.values.slice(1);
+    const spu = cellToText(values[spuIndex]);
+    if (!spu) return;
 
-    const details = {};
-    headers.forEach((header, index) => {
-      const key = String(header || `column_${index + 1}`).trim();
-      details[key] = row[index] ?? "";
+    mapping.set(spu, {
+      productName: cellToText(values[nameIndex]),
+      sourceRow: row.number,
     });
-
-    mapping.set(spu, details);
-  }
+  });
 
   return mapping;
 }
@@ -59,13 +67,18 @@ export async function loadSpuMapping(account) {
 export async function mergeTrendRowsForAccount(trends, account) {
   const mapping = await loadSpuMapping(account);
 
-  return trends.map((trend) => ({
-    account: account.name,
-    groupTitle: account.groupTitle,
-    spu: trend.spu,
-    sku: trend.sku,
-    date: trend.date,
-    sales: trend.sales ?? trend.yesterdaySales,
-    ...mapping.get(trend.spu),
-  }));
+  return trends
+    .map((trend) => {
+      const spu = cellToText(trend.spu);
+      const matchedProduct = mapping.get(spu);
+      if (!spu || !matchedProduct) return null;
+
+      return {
+        spu,
+        productName: matchedProduct.productName,
+        date: trend.date,
+        sales: trend.sales ?? trend.yesterdaySales ?? "",
+      };
+    })
+    .filter(Boolean);
 }

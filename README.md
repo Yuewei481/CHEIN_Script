@@ -1,12 +1,12 @@
 # CHEIN WPS Sync
 
-用于爬取 CHEIN 数据，并将结果写入云 WPS 的新项目。
+用于爬取 CHEIN 商品趋势数据，并用本地 Excel 按 SPU 对照商品名字。
 
 ## 目标
 
 - 抓取 CHEIN 相关数据
-- 清洗和整理爬取结果
-- 写入云 WPS 表格或文档
+- 用 Excel 的 SPU 列过滤采集结果
+- 输出 SPU 码、商品名字、采集日期和销量
 
 ## 目录
 
@@ -19,7 +19,7 @@
 
 ## 数据同步流程
 
-1. 复制 `.env.example` 为 `.env`，配置登录账号、参考 Excel、WPS 链接、sheet 名称和标题。
+1. 复制 `.env.example` 为 `.env`，配置登录账号、参考 Excel、SPU 列和商品名字列。
 2. 运行采集：
 
    ```bash
@@ -32,10 +32,10 @@
    TREND_DATES=2026/06/10,2026/06/09 npm run collect:product-trends
    ```
 
-3. 将最新采集结果和参考 Excel 按 SPU 合并，生成待写入 WPS 的 CSV/JSON：
+3. 将最新采集结果和参考 Excel 按 SPU 对照，只保留 Excel 中存在的商品，并生成 CSV/JSON：
 
    ```bash
-   npm run sync:wps
+   npm run match:excel
    ```
 
-当前 `WPS_WRITE_MODE=prepare` 会只生成待写入文件，不直接写云 WPS。等 WPS 表格页面的 sheet、标题、粘贴位置确认后，可以把写入模式接到 Playwright 流程。
+输出文件在 `output/playwright/`，文件名形如 `matched-trends-*.csv` 和 `matched-trends-*.json`。当前脚本不会写入云 WPS。
