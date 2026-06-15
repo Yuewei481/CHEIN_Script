@@ -9,7 +9,7 @@ const targetUrl =
 const username = process.env.GEIWOHUO_USERNAME;
 const password = process.env.GEIWOHUO_PASSWORD;
 const otpWaitMs = Number(process.env.GEIWOHUO_OTP_WAIT_MS || 5 * 60 * 1000);
-const maxProducts = Number(process.env.MAX_PRODUCTS || 3);
+const maxProducts = Number(process.env.MAX_PRODUCTS ?? 0);
 const artifactDir = path.resolve("output/playwright");
 
 if (!username || !password) {
@@ -598,8 +598,8 @@ async function collectTrends() {
           index: results.length + 1,
           page: pageNo,
           row: i + 1,
-          spu: trend.spu || target.spu || "",
-          sku: trend.sku || target.sku || "",
+          spu: target.spu || trend.spu || "",
+          sku: target.sku || trend.sku || "",
           date: tooltip.date,
           sales: tooltip.sales,
           seriesName: tooltip.seriesName,
