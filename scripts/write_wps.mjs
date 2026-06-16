@@ -30,11 +30,12 @@ const config = {
   scanRange: env("WPS_SCAN_RANGE", "A1:AZ2000"),
   matchedJson: env("MATCHED_TRENDS_JSON"),
   dryRun: envFlag("WPS_DRY_RUN", false),
-  initialWaitMs: envNumber("WPS_INITIAL_WAIT_MS", 120000),
+  initialWaitMs: envNumber("WPS_INITIAL_WAIT_MS", 600000),
   minDelayMs: envNumber("HUMAN_DELAY_MIN_MS", 2000),
   maxDelayMs: envNumber("HUMAN_DELAY_MAX_MS", 5000),
   headless: envFlag("HEADLESS", false),
   closeAfterRun: envFlag("CLOSE_CHROME_AFTER_RUN", true),
+  keepBrowserOnError: envFlag("KEEP_BROWSER_ON_ERROR", false),
   userDataDir: env("WPS_USER_DATA_DIR") || path.join(os.tmpdir(), "chein-wps-profile"),
 };
 
@@ -196,8 +197,60 @@ export function resolveWrites(copiedText, matchedRows, options) {
 async function clickSheetTab(page, sheetName) {
   const tab = page.getByText(sheetName, { exact: true }).last();
   await tab.waitFor({ state: "visible", timeout: config.initialWaitMs });
+  await waitForBlockingPopup(page);
   await humanPause(`click sheet ${sheetName}`);
-  await tab.click();
+  await waitForBlockingPopup(page);
+
+  try {
+    await tab.click();
+  } catch (error) {
+    await waitForBlockingPopup(page);
+    await tab.click();
+  }
+}
+
+async function hasBlockingPopup(page) {
+  return page.evaluate(() => {
+    const popup = document.querySelector("#util-popup");
+    if (!popup) return false;
+
+    const rect = popup.getBoundingClientRect();
+    const style = window.getComputedStyle(popup);
+    return (
+      popup.getAttribute("data-fullviewport") === "true" &&
+      rect.width > 0 &&
+      rect.height > 0 &&
+      style.display !== "none" &&
+      style.visibility !== "hidden" &&
+      style.pointerEvents !== "none"
+    );
+  });
+}
+
+async function waitForBlockingPopup(page) {
+  if (!(await hasBlockingPopup(page))) return;
+
+  console.log(`WPS popup is visible. Please finish or close it in Chrome; waiting up to ${config.initialWaitMs}ms.`);
+  await page.waitForFunction(
+    () => {
+      const popup = document.querySelector("#util-popup");
+      if (!popup) return true;
+
+      const rect = popup.getBoundingClientRect();
+      const style = window.getComputedStyle(popup);
+      return (
+        popup.getAttribute("data-fullviewport") !== "true" ||
+        rect.width === 0 ||
+        rect.height === 0 ||
+        style.display === "none" ||
+        style.visibility === "hidden" ||
+        style.pointerEvents === "none"
+      );
+    },
+    null,
+    { timeout: config.initialWaitMs },
+  );
+  await sleep(1500);
 }
 
 async function focusNameBox(page) {
@@ -209,11 +262,15 @@ async function focusNameBox(page) {
     if (!box) continue;
     if (box.x > 260 || box.y < 150 || box.y > 260 || box.width < 40 || box.width > 260) continue;
 
-    await handle.click({ clickCount: 3 });
-    return;
+    try {
+      await handle.click({ clickCount: 3, force: true });
+      return;
+    } catch {
+      break;
+    }
   }
 
-  throw new Error("Could not find the WPS name box used to jump to a cell/range.");
+  throw new Error("Could not reliably focus the WPS name box; aborting to avoid typing into sheet cells.");
 }
 
 async function selectRange(page, range) {
@@ -300,8 +357,15 @@ async function main() {
     }
 
     console.log(`Finished WPS writes: ${plan.writes.length}`);
+  } catch (error) {
+    if (config.keepBrowserOnError) {
+      console.error(error);
+      console.log("Keeping Chrome open because KEEP_BROWSER_ON_ERROR=1.");
+      return;
+    }
+    throw error;
   } finally {
-    if (config.closeAfterRun) {
+    if (config.closeAfterRun && !config.keepBrowserOnError) {
       await browser.close();
     }
   }
