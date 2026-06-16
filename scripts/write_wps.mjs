@@ -28,6 +28,9 @@ const config = {
   sheetName: env("WPS_SHEET_NAME", "运营数据记录表"),
   groupTitle: env("WPS_GROUP_TITLE", "SHEIN 1"),
   scanRange: env("WPS_SCAN_RANGE", "A1:AZ2000"),
+  selectAll: envFlag("WPS_SELECT_ALL", false),
+  horizontalScrollX: envNumber("WPS_HORIZONTAL_SCROLL_X", 0),
+  horizontalDragX: envNumber("WPS_HORIZONTAL_DRAG_X", 0),
   matchedJson: env("MATCHED_TRENDS_JSON"),
   dryRun: envFlag("WPS_DRY_RUN", false),
   initialWaitMs: envNumber("WPS_INITIAL_WAIT_MS", 600000),
@@ -302,6 +305,31 @@ async function copySelectedRange(page) {
   return readClipboard(page);
 }
 
+async function copyWholeSheet(page) {
+  const modifier = process.platform === "darwin" ? "Meta" : "Control";
+  if (config.horizontalScrollX) {
+    await humanPause(`horizontal scroll ${config.horizontalScrollX}`);
+    await page.mouse.wheel(config.horizontalScrollX, 0);
+    await sleep(1000);
+  }
+  if (config.horizontalDragX) {
+    await humanPause(`horizontal scrollbar drag ${config.horizontalDragX}`);
+    const y = page.viewportSize()?.height ? page.viewportSize().height - 58 : 610;
+    await page.mouse.move(120, y);
+    await page.mouse.down();
+    await page.mouse.move(120 + config.horizontalDragX, y, { steps: 12 });
+    await page.mouse.up();
+    await sleep(1000);
+  }
+  await humanPause("focus WPS grid");
+  await page.mouse.click(120, 260);
+  await humanPause("select whole WPS sheet");
+  await page.keyboard.press(`${modifier}+A`);
+  await page.keyboard.press(`${modifier}+A`);
+  await sleep(1000);
+  return copySelectedRange(page);
+}
+
 async function writeCell(page, cell, value) {
   await selectRange(page, cell);
   await humanPause(`write ${cell}`);
@@ -310,6 +338,10 @@ async function writeCell(page, cell, value) {
 }
 
 async function main() {
+  if (config.selectAll && !config.dryRun) {
+    throw new Error("WPS_SELECT_ALL is only supported with WPS_DRY_RUN=1.");
+  }
+
   const matchedJsonPath = config.matchedJson || (await latestMatchedJson());
   const matchedRows = JSON.parse(await fs.readFile(matchedJsonPath, "utf8"));
 
@@ -325,9 +357,13 @@ async function main() {
   try {
     await page.goto(config.docUrl, { waitUntil: "domcontentloaded", timeout: 120000 });
     await clickSheetTab(page, config.sheetName);
-    await selectRange(page, config.scanRange);
-    const copiedText = await copySelectedRange(page);
-    const plan = resolveWrites(copiedText, matchedRows, config);
+    const copiedText = config.selectAll
+      ? await copyWholeSheet(page)
+      : await selectRange(page, config.scanRange).then(() => copySelectedRange(page));
+    const plan = resolveWrites(copiedText, matchedRows, {
+      ...config,
+      scanRange: config.selectAll ? "A1" : config.scanRange,
+    });
 
     console.log(`Loaded matched rows: ${matchedJsonPath}`);
     console.log(`WPS group: ${config.groupTitle}`);
