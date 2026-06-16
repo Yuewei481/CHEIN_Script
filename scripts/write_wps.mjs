@@ -198,18 +198,39 @@ export function resolveWrites(copiedText, matchedRows, options) {
 }
 
 async function clickSheetTab(page, sheetName) {
-  const tab = page.getByText(sheetName, { exact: true }).last();
-  await tab.waitFor({ state: "visible", timeout: config.initialWaitMs });
+  await page.getByText(sheetName, { exact: true }).first().waitFor({
+    state: "visible",
+    timeout: config.initialWaitMs,
+  });
   await waitForBlockingPopup(page);
   await humanPause(`click sheet ${sheetName}`);
   await waitForBlockingPopup(page);
 
+  const viewport = page.viewportSize();
+  const minY = viewport?.height ? viewport.height - 130 : 600;
+  const candidates = page.getByText(sheetName, { exact: true });
+  const handles = await candidates.elementHandles();
+  for (const handle of handles) {
+    const box = await handle.boundingBox();
+    if (!box || box.y < minY) continue;
+
+    try {
+      await handle.click({ force: true });
+      await sleep(1000);
+      return;
+    } catch {
+      // Try the next visible bottom tab before falling back.
+    }
+  }
+
+  const tab = page.getByText(sheetName, { exact: true }).last();
   try {
     await tab.click();
   } catch (error) {
     await waitForBlockingPopup(page);
     await tab.click();
   }
+  await sleep(1000);
 }
 
 async function hasBlockingPopup(page) {
@@ -257,13 +278,19 @@ async function waitForBlockingPopup(page) {
 }
 
 async function focusNameBox(page) {
-  const candidates = page.locator('input, textarea, [contenteditable="true"]');
+  const exactNameBox = page.locator(".name-box input.edit-box").first();
+  if (await exactNameBox.isVisible().catch(() => false)) {
+    await exactNameBox.click({ clickCount: 3, force: true });
+    return;
+  }
+
+  const candidates = page.locator('input.edit-box, input, textarea, [contenteditable="true"]');
   const handles = await candidates.elementHandles();
 
   for (const handle of handles) {
     const box = await handle.boundingBox();
     if (!box) continue;
-    if (box.x > 260 || box.y < 150 || box.y > 260 || box.width < 40 || box.width > 260) continue;
+    if (box.x > 260 || box.y < 60 || box.y > 140 || box.width < 40 || box.width > 260) continue;
 
     try {
       await handle.click({ clickCount: 3, force: true });
@@ -360,6 +387,12 @@ async function main() {
     const copiedText = config.selectAll
       ? await copyWholeSheet(page)
       : await selectRange(page, config.scanRange).then(() => copySelectedRange(page));
+    const copiedPath = path.join(
+      artifactDir,
+      `wps-copied-${new Date().toISOString().replace(/[:.]/g, "-")}.tsv`,
+    );
+    await fs.writeFile(copiedPath, copiedText);
+    console.log(`Copied WPS range saved: ${copiedPath}`);
     const plan = resolveWrites(copiedText, matchedRows, {
       ...config,
       scanRange: config.selectAll ? "A1" : config.scanRange,
