@@ -67,6 +67,34 @@ async function fill(locator, value, label) {
   await locator.fill(value);
 }
 
+async function dismissAnnouncementModals() {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const modal = await firstVisible([
+      page.locator(".so-modal").filter({ hasText: /公告|上线新功能|我已确认/ }),
+      page.locator(".so-modal-start, .so-modal-show"),
+      page.getByText(/我已确认本公告|下一条/),
+    ]);
+
+    if (!modal) return;
+
+    const action = await firstVisible([
+      page.getByText("我已确认本公告", { exact: true }),
+      page.getByText("下一条", { exact: true }),
+      page.getByRole("button", { name: /我已确认|下一条|确认|知道了/ }),
+      page.locator(".so-modal").getByText(/我已确认|下一条|确认|知道了/),
+    ]);
+
+    if (action) {
+      await click(action, "dismiss announcement modal");
+    } else {
+      await humanPause("press Escape to dismiss announcement modal");
+      await page.keyboard.press("Escape");
+    }
+
+    await page.waitForTimeout(1200);
+  }
+}
+
 async function login() {
   console.log(`Opening ${targetUrl}`);
   await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
@@ -165,6 +193,7 @@ async function login() {
   }
 
   await page.waitForLoadState("networkidle").catch(() => {});
+  await dismissAnnouncementModals();
 }
 
 async function navigateToProductDetails() {
@@ -206,6 +235,7 @@ async function navigateToProductDetails() {
 
   await page.waitForLoadState("networkidle").catch(() => {});
   await page.waitForTimeout(2000);
+  await dismissAnnouncementModals();
 }
 
 function formatDateLabels(date) {
@@ -588,10 +618,12 @@ async function collectTrends() {
       await humanPause(`open trend ${results.length + 1}`);
       await page.mouse.click(target.x, target.y);
       await page.waitForTimeout(5000);
+      await dismissAnnouncementModals();
 
       const trend = await readTrendModal();
 
       for (const labels of datesToRead) {
+        await dismissAnnouncementModals();
         const tooltip = await readTooltipSalesForDate(labels);
 
         results.push({
