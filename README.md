@@ -648,5 +648,5 @@ npx playwright install chromium
 推荐 GitHub description：
 
 ```text
-用于 SHEIN/给我货商家后台的商品趋势销量采集与 WPS 云表格同步脚本，支持多日期读取、Excel SPU 对照和按日期商品名写入指定 WPS 区域。
+自动从 SHEIN/给我货商家后台读取商品每日销量，并根据本地 Excel 对照表把结果写入 WPS 云表格。
 ```
