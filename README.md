@@ -307,17 +307,23 @@ WPS_DRY_RUN=1
 WPS_DRY_RUN=0
 ```
 
-注意：`WPS_DRY_RUN` 主要用于单独运行 `npm run write:wps`。日常一键运行时，`npm run sync` 会执行真实写入；如果只想预览，请运行 `npm run sync:dry-run`。
+注意：`WPS_DRY_RUN` 主要用于单独调试 WPS 写入。日常运行只需要看下面的“如何运行”。
 
-## 五、运行流程
+## 五、如何运行
 
-正常使用时，只需要运行一次：
+配置好 `.env` 以后，正常使用只需要在项目根目录输入这一行代码：
 
 ```bash
 npm run sync
 ```
 
-这个命令会自动完成完整流程：
+运行方法：
+
+1. 打开 Terminal、Git Bash 或 PowerShell。
+2. 进入项目根目录，也就是有 `package.json` 和 `README.md` 的文件夹。
+3. 输入 `npm run sync`，然后按回车。
+
+这一行代码会自动完成：
 
 1. 打开可见 Chrome。
 2. 登录 CHEIN 商家后台。
@@ -333,17 +339,15 @@ npm run sync
 12. 按 `日期 + 商品名字` 找到对应行。
 13. 把销量写入 `销量（件）` 列。
 
-也就是说，日常使用者不需要分别运行采集、匹配、写入三条命令。
+也就是说，日常使用者不需要分别运行采集、匹配、写入这些命令，只需要运行 `npm run sync`。
 
-### 先预览，不正式写入
-
-如果你想先检查脚本会写入哪些 WPS 单元格，可以运行：
+如果只是想先预览，不正式写入 WPS，可以运行：
 
 ```bash
 npm run sync:dry-run
 ```
 
-这个命令同样会完成采集和 Excel 对照，但 WPS 部分只打印计划写入的位置，不真正写入。
+`npm run sync:dry-run` 同样会完成采集和 Excel 对照，但 WPS 部分只打印计划写入的位置，不真正写入。
 
 示例输出：
 
@@ -519,4 +523,3 @@ CLOSE_CHROME_AFTER_RUN=1
 脚本正常结束后会尝试关闭自己打开的 Chrome。
 
 如果因为错误停住，并且设置了 `KEEP_BROWSER_ON_ERROR=1`，浏览器会保留，方便你检查页面状态。
-

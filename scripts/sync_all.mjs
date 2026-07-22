@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { spawn } from "node:child_process";
 import path from "node:path";
 
@@ -35,7 +36,7 @@ const wpsDryRun =
     ? "1"
     : process.env.SYNC_DRY_RUN === "0"
       ? "0"
-      : process.env.WPS_DRY_RUN || "0";
+      : "0";
 
 await runStep("Collect CHEIN product trends", "scripts/collect_product_trends.mjs");
 await runStep("Match collected rows with Excel", "scripts/match_excel.mjs");
