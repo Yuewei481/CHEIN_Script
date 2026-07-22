@@ -58,11 +58,6 @@ Mac 需要：
 - npm
 - Google Chrome
 
-如果你使用 Homebrew，可以运行：
-
-```bash
-brew install git node
-```
 
 检查是否安装成功：
 
