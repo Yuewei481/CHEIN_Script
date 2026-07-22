@@ -37,6 +37,7 @@ CHEIN_Script/
 │   ├── collect_product_trends.mjs
 │   ├── match_excel.mjs
 │   ├── write_wps.mjs
+│   ├── sync_all.mjs
 │   └── sync_wps.mjs
 └── src/
     ├── config.mjs
@@ -99,6 +100,8 @@ cd /Users/你的用户名/Documents/project/CHEIN_Script
 npm install
 ```
 
+本项目使用 Playwright 控制本机已经安装好的普通 Google Chrome。请先安装普通 Google Chrome；一般不需要运行 `npx playwright install chromium`。
+
 ### 4. 创建并修改 `.env`
 
 在项目根目录运行：
@@ -160,8 +163,9 @@ Set-Location "$HOME\Documents\CHEIN_Script"
 
 ```bash
 npm install
-npx playwright install chromium
 ```
+
+本项目使用 Playwright 控制本机已经安装好的普通 Google Chrome。请先安装普通 Google Chrome；一般不需要额外下载 Playwright 自带 Chromium。
 
 ### 4. 创建并修改 `.env`
 
@@ -291,26 +295,130 @@ MATCHED_TRENDS_JSON=
 - `WPS_USER_DATA_DIR`：WPS 专用 Chrome 用户目录。留空时使用临时目录。
 - `MATCHED_TRENDS_JSON`：指定要写入的匹配结果 JSON。留空时使用最新的 `matched-trends-*.json`。
 
+日常建议先用：
+
+```env
+WPS_DRY_RUN=1
+```
+
+确认输出单元格正确后，再改成：
+
+```env
+WPS_DRY_RUN=0
+```
+
+注意：`WPS_DRY_RUN` 主要用于单独运行 `npm run write:wps`。日常一键运行时，`npm run sync` 会执行真实写入；如果只想预览，请运行 `npm run sync:dry-run`。
+
 ## 五、运行流程
 
-完整流程分三步：采集、匹配、写入。
+正常使用时，只需要运行一次：
 
-### 1. 采集商品趋势销量
+```bash
+npm run sync
+```
+
+这个命令会自动完成完整流程：
+
+1. 打开可见 Chrome。
+2. 登录 CHEIN 商家后台。
+3. 如果出现手机验证码，等待你手动输入。
+4. 进入商品分析和商品明细页面。
+5. 逐个打开商品的 `查看趋势` 弹窗。
+6. 悬浮目标日期，读取提示框中的销量。
+7. 保存采集结果。
+8. 用本地 Excel 对照表按 SPU 匹配商品名字。
+9. 过滤掉 Excel 中不存在的 SPU。
+10. 打开 WPS 云文档。
+11. 切换到指定 sheet 和指定区域，例如 `CHEIN 1`。
+12. 按 `日期 + 商品名字` 找到对应行。
+13. 把销量写入 `销量（件）` 列。
+
+也就是说，日常使用者不需要分别运行采集、匹配、写入三条命令。
+
+### 先预览，不正式写入
+
+如果你想先检查脚本会写入哪些 WPS 单元格，可以运行：
+
+```bash
+npm run sync:dry-run
+```
+
+这个命令同样会完成采集和 Excel 对照，但 WPS 部分只打印计划写入的位置，不真正写入。
+
+示例输出：
+
+```text
+WPS group: CHEIN 1
+Detected columns: {"date":"O","productName":"P","sales":"R"}
+Writable rows: 9
+Missing rows: 0
+Dry run enabled. Planned writes:
+R904: 2026/06/15 父亲节盒子 => 4
+```
+
+如果 `Missing rows` 不为 0，说明 WPS 里没有找到对应的 `日期 + 商品名字` 行，需要先检查 WPS 表格或 Excel 对照表。
+
+## 六、常用运行示例
+
+### 读取昨天并写入
+
+`.env` 中保持：
+
+```env
+TREND_DATES=
+MAX_PRODUCTS=0
+```
+
+运行：
+
+```bash
+npm run sync
+```
+
+### 读取指定多个日期并写入
+
+在 `.env` 中填写：
+
+```env
+TREND_DATES=2026/06/15,2026/06/14,2026/06/13
+MAX_PRODUCTS=0
+```
+
+然后运行：
+
+```bash
+npm run sync
+```
+
+### 只测试前 3 个商品
+
+在 `.env` 中填写：
+
+```env
+MAX_PRODUCTS=3
+```
+
+然后运行：
+
+```bash
+npm run sync:dry-run
+```
+
+测试没问题后，再改回：
+
+```env
+MAX_PRODUCTS=0
+```
+
+## 七、调试时单独运行每一步
+
+正常使用不需要看这一节。只有当你要排查问题时，才需要分开运行。
+
+### 1. 只采集商品趋势销量
 
 ```bash
 npm run collect:product-trends
 ```
-
-脚本会：
-
-1. 打开可见 Chrome。
-2. 进入 CHEIN 商家后台。
-3. 自动输入账号密码。
-4. 如果出现验证码，等待你手动输入。
-5. 进入商品分析和商品明细页面。
-6. 逐个打开 `查看趋势`。
-7. 悬浮目标日期，读取提示框中的销量。
-8. 保存采集结果。
 
 输出文件在：
 
@@ -319,7 +427,7 @@ output/playwright/product-trends-时间.json
 output/playwright/product-trends-时间.csv
 ```
 
-### 2. 用 Excel 匹配商品名字
+### 2. 只用 Excel 匹配商品名字
 
 ```bash
 npm run match:excel
@@ -341,32 +449,13 @@ output/playwright/matched-trends-时间.csv
 - 日期
 - 销量
 
-### 3. 预览 WPS 写入位置
-
-正式写入前建议先 dry run：
+### 3. 只预览 WPS 写入位置
 
 ```bash
 WPS_DRY_RUN=1 npm run write:wps
 ```
 
-脚本会打开 WPS 云文档，找到对应 sheet 和区域标题，然后打印计划写入的单元格。
-
-示例：
-
-```text
-WPS group: CHEIN 1
-Detected columns: {"date":"O","productName":"P","sales":"R"}
-Writable rows: 9
-Missing rows: 0
-Dry run enabled. Planned writes:
-R904: 2026/06/15 父亲节盒子 => 4
-```
-
-如果 `Missing rows` 不为 0，说明 WPS 里没有找到对应的 `日期 + 商品名字` 行，需要先检查 WPS 表格或 Excel 对照表。
-
-### 4. 正式写入 WPS
-
-确认 dry run 没问题后，运行：
+### 4. 只正式写入 WPS
 
 ```bash
 WPS_DRY_RUN=0 npm run write:wps
@@ -374,62 +463,7 @@ WPS_DRY_RUN=0 npm run write:wps
 
 脚本会把销量写入 WPS 中匹配到的 `销量（件）` 列。
 
-## 六、常用运行示例
-
-### 读取昨天并写入
-
-`.env` 中保持：
-
-```env
-TREND_DATES=
-MAX_PRODUCTS=0
-```
-
-运行：
-
-```bash
-npm run collect:product-trends
-npm run match:excel
-WPS_DRY_RUN=1 npm run write:wps
-WPS_DRY_RUN=0 npm run write:wps
-```
-
-### 读取指定多个日期
-
-Mac / Git Bash：
-
-```bash
-TREND_DATES=2026/06/15,2026/06/14,2026/06/13 npm run collect:product-trends
-npm run match:excel
-WPS_DRY_RUN=1 npm run write:wps
-WPS_DRY_RUN=0 npm run write:wps
-```
-
-PowerShell：
-
-```powershell
-$env:TREND_DATES="2026/06/15,2026/06/14,2026/06/13"
-npm run collect:product-trends
-npm run match:excel
-$env:WPS_DRY_RUN="1"
-npm run write:wps
-$env:WPS_DRY_RUN="0"
-npm run write:wps
-```
-
-### 只测试前 3 个商品
-
-```bash
-MAX_PRODUCTS=3 npm run collect:product-trends
-```
-
-测试没问题后，再改回：
-
-```bash
-MAX_PRODUCTS=0
-```
-
-## 七、从开始到结束需要人工做什么
+## 八、从开始到结束需要人工做什么
 
 正常情况下，你一开始不需要手动打开网站或 WPS。只需要在项目目录运行命令，脚本会自己打开 Chrome。
 
@@ -459,7 +493,7 @@ MAX_PRODUCTS=0
 
 确认后再正式写入。
 
-## 八、输出文件
+## 九、输出文件
 
 脚本输出都在：
 
@@ -479,7 +513,7 @@ output/playwright/
 
 `output/` 已经被 `.gitignore` 忽略，不会上传到 GitHub。
 
-## 九、运行时注意事项
+## 十、运行时注意事项
 
 - 不要关闭脚本打开的浏览器。
 - 浏览器可以放到旁边，但不要最小化。
@@ -491,7 +525,7 @@ output/playwright/
 - `.env` 修改后必须保存，再重新运行脚本才会生效。
 - Excel 对照表里的 SPU 列和商品名字列必须和 `.env` 配置一致。
 
-## 十、常见问题
+## 十一、常见问题
 
 ### 1. 提示缺少账号密码
 
@@ -578,7 +612,7 @@ CLOSE_CHROME_AFTER_RUN=1
 
 如果因为错误停住，并且设置了 `KEEP_BROWSER_ON_ERROR=1`，浏览器会保留，方便你检查页面状态。
 
-## 十一、不要上传的内容
+## 十二、不要上传的内容
 
 以下内容已经通过 `.gitignore` 忽略，不要上传到 GitHub：
 
@@ -592,7 +626,7 @@ CLOSE_CHROME_AFTER_RUN=1
 
 `.env.example` 可以上传，但里面只应该放示例值，不要放真实密码。
 
-## 十二、更新项目
+## 十三、更新项目
 
 如果 GitHub 上有新版代码，在项目根目录运行：
 
@@ -607,7 +641,7 @@ npm install
 npx playwright install chromium
 ```
 
-## 十三、仓库描述
+## 十四、仓库描述
 
 推荐 GitHub description：
 

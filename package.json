@@ -8,6 +8,8 @@
     "collect:product-trends": "npx --yes --package playwright node scripts/collect_product_trends.mjs",
     "match:excel": "node scripts/match_excel.mjs",
     "write:wps": "npx --yes --package playwright node scripts/write_wps.mjs",
+    "sync": "node scripts/sync_all.mjs",
+    "sync:dry-run": "node scripts/sync_all.mjs --dry-run",
     "sync:wps": "npx --yes --package playwright node scripts/write_wps.mjs"
   },
   "devDependencies": {
