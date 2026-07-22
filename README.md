@@ -97,10 +97,7 @@ cd /Users/你的用户名/Documents/project/CHEIN_Script
 
 ```bash
 npm install
-npx playwright install chromium
 ```
-
-本项目默认使用本机 Google Chrome 运行自动化。如果 Chrome 已经安装，一般不需要额外配置浏览器路径。
 
 ### 4. 创建并修改 `.env`
 
