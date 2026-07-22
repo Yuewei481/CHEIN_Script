@@ -410,60 +410,7 @@ npm run sync:dry-run
 MAX_PRODUCTS=0
 ```
 
-## 七、调试时单独运行每一步
-
-正常使用不需要看这一节。只有当你要排查问题时，才需要分开运行。
-
-### 1. 只采集商品趋势销量
-
-```bash
-npm run collect:product-trends
-```
-
-输出文件在：
-
-```text
-output/playwright/product-trends-时间.json
-output/playwright/product-trends-时间.csv
-```
-
-### 2. 只用 Excel 匹配商品名字
-
-```bash
-npm run match:excel
-```
-
-脚本会读取最新的 `product-trends-*.json`，用 `.env` 中配置的 Excel 对照表按 SPU 匹配商品名字。
-
-输出文件在：
-
-```text
-output/playwright/matched-trends-时间.json
-output/playwright/matched-trends-时间.csv
-```
-
-匹配结果只保留：
-
-- SPU
-- 商品名字
-- 日期
-- 销量
-
-### 3. 只预览 WPS 写入位置
-
-```bash
-WPS_DRY_RUN=1 npm run write:wps
-```
-
-### 4. 只正式写入 WPS
-
-```bash
-WPS_DRY_RUN=0 npm run write:wps
-```
-
-脚本会把销量写入 WPS 中匹配到的 `销量（件）` 列。
-
-## 八、从开始到结束需要人工做什么
+## 七、从开始到结束需要人工做什么
 
 正常情况下，你一开始不需要手动打开网站或 WPS。只需要在项目目录运行命令，脚本会自己打开 Chrome。
 
@@ -481,19 +428,7 @@ WPS_DRY_RUN=0 npm run write:wps
 
 脚本会等待 `WPS_INITIAL_WAIT_MS` 设置的时间，默认最多 10 分钟。
 
-### 3. dry run 结果确认
-
-正式写入前，建议先看 dry run 输出：
-
-- `WPS group` 是否是目标区域，例如 `CHEIN 1`
-- `Detected columns` 中日期、商品名、销量列是否正确
-- `Writable rows` 是否符合预期
-- `Missing rows` 是否为 0
-- 计划写入的日期、商品名、销量是否合理
-
-确认后再正式写入。
-
-## 九、输出文件
+## 八、输出文件
 
 脚本输出都在：
 
@@ -513,7 +448,7 @@ output/playwright/
 
 `output/` 已经被 `.gitignore` 忽略，不会上传到 GitHub。
 
-## 十、运行时注意事项
+## 九、运行时注意事项
 
 - 不要关闭脚本打开的浏览器。
 - 浏览器可以放到旁边，但不要最小化。
@@ -525,7 +460,7 @@ output/playwright/
 - `.env` 修改后必须保存，再重新运行脚本才会生效。
 - Excel 对照表里的 SPU 列和商品名字列必须和 `.env` 配置一致。
 
-## 十一、常见问题
+## 十、常见问题
 
 ### 1. 提示缺少账号密码
 
@@ -573,34 +508,7 @@ output/playwright/product-trends-*.csv
 
 确认采集结果里是否有 SPU。
 
-### 4. WPS dry run 有 Missing rows
-
-说明 WPS 中没有找到对应的 `日期 + 商品名字` 行。
-
-检查：
-
-- WPS 中日期是否存在。
-- WPS 商品名字是否和 Excel 对照表完全一致。
-- `WPS_GROUP_TITLE` 是否正确。
-- `WPS_SCAN_RANGE` 是否覆盖到目标区域。
-
-### 5. WPS 写入到了错误区域
-
-先停止脚本，不要继续正式写入。
-
-然后检查 dry run 输出：
-
-- `Detected columns` 是否正确。
-- `Planned writes` 是否是你想写入的单元格。
-- 当前 WPS 是否切到了正确 sheet。
-
-建议正式写入前始终先运行：
-
-```bash
-WPS_DRY_RUN=1 npm run write:wps
-```
-
-### 6. Chrome 没有自动关闭
+### 4. Chrome 没有自动关闭
 
 如果设置了：
 
@@ -612,39 +520,3 @@ CLOSE_CHROME_AFTER_RUN=1
 
 如果因为错误停住，并且设置了 `KEEP_BROWSER_ON_ERROR=1`，浏览器会保留，方便你检查页面状态。
 
-## 十二、不要上传的内容
-
-以下内容已经通过 `.gitignore` 忽略，不要上传到 GitHub：
-
-- `.env`
-- `.env.*`
-- `node_modules/`
-- `output/`
-- `logs/`
-- 浏览器用户数据目录
-- 任何包含真实账号、密码、验证码、云文档私密链接的文件
-
-`.env.example` 可以上传，但里面只应该放示例值，不要放真实密码。
-
-## 十三、更新项目
-
-如果 GitHub 上有新版代码，在项目根目录运行：
-
-```bash
-git pull
-npm install
-```
-
-如果 Playwright 提示浏览器版本不匹配，再运行：
-
-```bash
-npx playwright install chromium
-```
-
-## 十四、仓库描述
-
-推荐 GitHub description：
-
-```text
-自动采集 CHEIN 商品每日销量，并同步到 WPS 云表格。
-```
