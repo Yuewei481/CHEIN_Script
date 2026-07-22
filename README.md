@@ -1,12 +1,12 @@
 # CHEIN Script
 
-CHEIN Script 是一个用于 SHEIN 商家后台的商品趋势销量采集与 WPS 云表格同步脚本。
+CHEIN Script 是一个用于 CHEIN 商家后台的商品趋势销量采集与 WPS 云表格同步脚本。
 
-脚本会打开浏览器登录 SHEIN 商家后台，进入商品分析页面，逐个打开商品的趋势图，通过鼠标悬浮指定日期读取销量。读取完成后，脚本会用本地 Excel 表格中的 SPU 对照商品名字，只保留 Excel 中存在的商品，最后把匹配后的销量写入指定 WPS 云文档中的对应区域。
+脚本会打开浏览器登录 CHEIN 商家后台，进入商品分析页面，逐个打开商品的趋势图，通过鼠标悬浮指定日期读取销量。读取完成后，脚本会用本地 Excel 表格中的 SPU 对照商品名字，只保留 Excel 中存在的商品，最后把匹配后的销量写入指定 WPS 云文档中的对应区域。
 
 ## 本脚本功能
 
-- 自动打开可见 Google Chrome，进入 SHEIN 商家后台。
+- 自动打开可见 Google Chrome，进入 CHEIN 商家后台。
 - 自动填写账号密码；如果出现手机验证码，等待人工输入。
 - 进入 `数据 -> 商品分析 -> 商品明细` 页面。
 - 逐个打开商品的 `查看趋势` 弹窗。
@@ -18,7 +18,7 @@ CHEIN Script 是一个用于 SHEIN 商家后台的商品趋势销量采集与 WP
 - 如果采集到的 SPU 不存在于 Excel 对照表中，会自动过滤，不进入后续写入。
 - 输出匹配后的 `SPU / 商品名字 / 日期 / 销量` JSON 和 CSV 文件。
 - 打开 WPS 云文档，切换到指定 sheet。
-- 在 WPS 表格中找到指定区域标题，例如 `SHEIN 1`。
+- 在 WPS 表格中找到指定区域标题，例如 `CHEIN 1`。
 - 按 `日期 + 商品名字` 匹配已有行，只写入 `销量（件）` 列。
 - 支持 WPS 写入前 dry run，先预览将要写入哪些单元格。
 - 写入后会保存复制出来的 WPS TSV 片段，方便检查和排错。
@@ -213,8 +213,8 @@ GEIWOHUO_PASSWORD=
 GEIWOHUO_OTP_WAIT_MS=300000
 ```
 
-- `GEIWOHUO_USERNAME`：SHEIN 商家后台账号。
-- `GEIWOHUO_PASSWORD`：SHEIN 商家后台密码。
+- `GEIWOHUO_USERNAME`：CHEIN 商家后台账号。
+- `GEIWOHUO_PASSWORD`：CHEIN 商家后台密码。
 - `GEIWOHUO_OTP_WAIT_MS`：出现手机验证码时最多等待多久。`300000` 表示 5 分钟。
 
 不要把真实账号密码上传到 GitHub。真实账号密码只写在本机 `.env` 中。
@@ -262,12 +262,12 @@ TREND_DATES=2026-06-15,2026-06-14,2026-06-13
 ```env
 ACCOUNT_COUNT=1
 
-ACCOUNT_1_NAME=SHEIN 1
+ACCOUNT_1_NAME=CHEIN 1
 ACCOUNT_1_SOURCE_EXCEL=
 ACCOUNT_1_SOURCE_EXCEL_SHEET=
 ACCOUNT_1_SOURCE_EXCEL_SPU_COLUMN=E
 ACCOUNT_1_SOURCE_EXCEL_NAME_COLUMN=B
-ACCOUNT_1_GROUP_TITLE=SHEIN 1
+ACCOUNT_1_GROUP_TITLE=CHEIN 1
 ```
 
 - `ACCOUNT_COUNT`：账号数量。当前项目主要按一个账号运行，通常写 `1`。
@@ -284,7 +284,7 @@ ACCOUNT_1_GROUP_TITLE=SHEIN 1
 ACCOUNT_1_SOURCE_EXCEL=/Users/你的用户名/Desktop/工作簿12.xlsx
 ACCOUNT_1_SOURCE_EXCEL_SPU_COLUMN=E
 ACCOUNT_1_SOURCE_EXCEL_NAME_COLUMN=B
-ACCOUNT_1_GROUP_TITLE=SHEIN 1
+ACCOUNT_1_GROUP_TITLE=CHEIN 1
 ```
 
 如果采集到的 SPU 在 Excel 中找不到，这个商品的数据会被过滤，不会写入 WPS。
@@ -294,7 +294,7 @@ ACCOUNT_1_GROUP_TITLE=SHEIN 1
 ```env
 WPS_DOC_URL=https://www.kdocs.cn/l/your-wps-document-id
 WPS_SHEET_NAME=运营数据记录表
-WPS_GROUP_TITLE=SHEIN 1
+WPS_GROUP_TITLE=CHEIN 1
 WPS_SCAN_RANGE=A1:AZ2000
 WPS_INITIAL_WAIT_MS=600000
 WPS_DRY_RUN=1
@@ -307,7 +307,7 @@ MATCHED_TRENDS_JSON=
 
 - `WPS_DOC_URL`：WPS 云文档链接。
 - `WPS_SHEET_NAME`：要写入的 sheet 名。
-- `WPS_GROUP_TITLE`：WPS 第 1 行中的区域标题，例如 `SHEIN 1`。
+- `WPS_GROUP_TITLE`：WPS 第 1 行中的区域标题，例如 `CHEIN 1`。
 - `WPS_SCAN_RANGE`：扫描范围。脚本会在这个范围中找标题、日期、商品名字和销量列。
 - `WPS_INITIAL_WAIT_MS`：打开 WPS 后等待登录、弹窗和文档加载的最长时间。`600000` 表示 10 分钟。
 - `WPS_DRY_RUN=1`：只预览要写入的位置，不真正写入。
@@ -340,7 +340,7 @@ npm run collect:product-trends
 脚本会：
 
 1. 打开可见 Chrome。
-2. 进入 SHEIN 商家后台。
+2. 进入 CHEIN 商家后台。
 3. 自动输入账号密码。
 4. 如果出现验证码，等待你手动输入。
 5. 进入商品分析和商品明细页面。
@@ -390,7 +390,7 @@ WPS_DRY_RUN=1 npm run write:wps
 示例：
 
 ```text
-WPS group: SHEIN 1
+WPS group: CHEIN 1
 Detected columns: {"date":"O","productName":"P","sales":"R"}
 Writable rows: 9
 Missing rows: 0
@@ -471,7 +471,7 @@ MAX_PRODUCTS=0
 
 可能需要人工操作的地方：
 
-### 1. SHEIN 商家后台手机验证码
+### 1. CHEIN 商家后台手机验证码
 
 脚本会自动输入账号密码并点击登录。
 
@@ -487,7 +487,7 @@ MAX_PRODUCTS=0
 
 正式写入前，建议先看 dry run 输出：
 
-- `WPS group` 是否是目标区域，例如 `SHEIN 1`
+- `WPS group` 是否是目标区域，例如 `CHEIN 1`
 - `Detected columns` 中日期、商品名、销量列是否正确
 - `Writable rows` 是否符合预期
 - `Missing rows` 是否为 0
@@ -520,7 +520,7 @@ output/playwright/
 - 不要关闭脚本打开的浏览器。
 - 浏览器可以放到旁边，但不要最小化。
 - 采集时每一步会随机等待 2-5 秒，这是为了模拟人工操作。
-- 如果 SHEIN 商家后台或 WPS 页面加载慢，请耐心等待。
+- 如果 CHEIN 商家后台或 WPS 页面加载慢，请耐心等待。
 - 如果 WPS 表格结构变了，需要同步调整 `.env` 中的 `WPS_GROUP_TITLE` 和 `WPS_SCAN_RANGE`。
 - 如果 WPS 大范围复制只复制到部分行，可以把 `WPS_SCAN_RANGE` 缩小到目标日期附近再验证。
 - 运行正式写入前，建议先 dry run。
@@ -548,7 +548,7 @@ GEIWOHUO_PASSWORD=
 
 ### 2. 一直停在验证码页面
 
-说明 SHEIN 商家后台要求手机验证。
+说明 CHEIN 商家后台要求手机验证。
 
 你需要在脚本打开的 Chrome 中手动输入验证码。如果 5 分钟不够，可以调大：
 
@@ -648,5 +648,5 @@ npx playwright install chromium
 推荐 GitHub description：
 
 ```text
-自动采集 SHEIN 商品每日销量，并同步到 WPS 云表格。
+自动采集 CHEIN 商品每日销量，并同步到 WPS 云表格。
 ```

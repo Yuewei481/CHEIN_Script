@@ -26,7 +26,7 @@ function envFlag(name, fallback = false) {
 const config = {
   docUrl: env("WPS_DOC_URL", "https://www.kdocs.cn/l/chfPxzOOiHeN"),
   sheetName: env("WPS_SHEET_NAME", "运营数据记录表"),
-  groupTitle: env("WPS_GROUP_TITLE", "SHEIN 1"),
+  groupTitle: env("WPS_GROUP_TITLE", "CHEIN 1"),
   scanRange: env("WPS_SCAN_RANGE", "A1:AZ2000"),
   selectAll: envFlag("WPS_SELECT_ALL", false),
   horizontalScrollX: envNumber("WPS_HORIZONTAL_SCROLL_X", 0),
