@@ -195,8 +195,6 @@ GEIWOHUO_OTP_WAIT_MS=300000
 - `GEIWOHUO_PASSWORD`：CHEIN 商家后台密码。
 - `GEIWOHUO_OTP_WAIT_MS`：出现手机验证码时最多等待多久。`300000` 表示 5 分钟。
 
-不要把真实账号密码上传到 GitHub。真实账号密码只写在本机 `.env` 中。
-
 ### 浏览器和操作节奏
 
 ```env
@@ -292,18 +290,6 @@ MATCHED_TRENDS_JSON=
 - `WPS_DRY_RUN=0`：正式写入。
 - `WPS_USER_DATA_DIR`：WPS 专用 Chrome 用户目录。留空时使用临时目录。
 - `MATCHED_TRENDS_JSON`：指定要写入的匹配结果 JSON。留空时使用最新的 `matched-trends-*.json`。
-
-日常建议先用：
-
-```env
-WPS_DRY_RUN=1
-```
-
-确认输出单元格正确后，再改成：
-
-```env
-WPS_DRY_RUN=0
-```
 
 ## 五、运行流程
 
